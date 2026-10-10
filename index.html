@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#6c5ce7" />
+  <meta name="description" content="Malen nach Zahlen – entspannendes Color-by-Numbers Spiel als PWA" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Happy Color" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" type="image/png" href="icons/icon-192.png" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <title>Happy Color – Malen nach Zahlen</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- Start Screen -->
+    <section id="start-screen" class="screen active">
+      <div class="hero">
+        <div class="logo">🎨</div>
+        <h1>Happy Color</h1>
+        <p class="subtitle">Malen nach Zahlen</p>
+      </div>
+      <div class="level-grid" id="level-grid"></div>
+      <p class="hint">Tippe ein Bild an, um zu starten</p>
+    </section>
+
+    <!-- Game Screen -->
+    <section id="game-screen" class="screen">
+      <header class="game-header">
+        <button id="btn-back" class="icon-btn" title="Zurück">←</button>
+        <div class="progress-wrap">
+          <div class="progress-bar"><div id="progress-fill"></div></div>
+          <span id="progress-text">0%</span>
+        </div>
+        <button id="btn-hint" class="icon-btn" title="Hinweis">💡</button>
+      </header>
+
+      <div class="canvas-container" id="canvas-container">
+        <canvas id="game-canvas"></canvas>
+      </div>
+
+      <div class="palette" id="palette"></div>
+    </section>
+
+    <!-- Complete Overlay -->
+    <div id="complete-overlay" class="overlay hidden">
+      <div class="overlay-content">
+        <div class="celebrate">🎉</div>
+        <h2>Fertig!</h2>
+        <p>Schönes Bild!</p>
+        <button id="btn-next" class="primary-btn">Nächstes Bild</button>
+        <button id="btn-home" class="secondary-btn">Zur Übersicht</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="levels.js"></script>
+  <script src="app.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js')
+          .then(reg => console.log('SW registered', reg.scope))
+          .catch(err => console.log('SW failed', err));
+      });
+    }
+  </script>
+</body>
+</html>
