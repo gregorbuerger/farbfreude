@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <meta name="theme-color" content="#6c5ce7" />
-  <meta name="description" content="Malen nach Zahlen – entspannendes Color-by-Numbers Spiel als PWA" />
+  <meta name="theme-color" content="#5c4d7a" />
+  <meta name="description" content="Malen nach Zahlen – entspannendes Color-by-Numbers wie Happy Color" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Happy Color" />
@@ -16,7 +16,6 @@
 </head>
 <body>
   <div id="app">
-    <!-- Start Screen -->
     <section id="start-screen" class="screen active">
       <div class="hero">
         <div class="logo">🎨</div>
@@ -27,7 +26,6 @@
       <p class="hint">Tippe ein Bild an, um zu starten</p>
     </section>
 
-    <!-- Game Screen -->
     <section id="game-screen" class="screen">
       <header class="game-header">
         <button id="btn-back" class="icon-btn" title="Zurück">←</button>
@@ -39,13 +37,12 @@
       </header>
 
       <div class="canvas-container" id="canvas-container">
-        <canvas id="game-canvas"></canvas>
+        <div id="svg-wrap"></div>
       </div>
 
       <div class="palette" id="palette"></div>
     </section>
 
-    <!-- Complete Overlay -->
     <div id="complete-overlay" class="overlay hidden">
       <div class="overlay-content">
         <div class="celebrate">🎉</div>
@@ -62,9 +59,7 @@
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('sw.js')
-          .then(reg => console.log('SW registered', reg.scope))
-          .catch(err => console.log('SW failed', err));
+        navigator.serviceWorker.register('sw.js').catch(() => {});
       });
     }
   </script>

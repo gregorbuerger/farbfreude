@@ -1,183 +1,186 @@
 (() => {
   "use strict";
 
-  // ===== State =====
   let currentLevel = null;
-  let filled = null;          // 2D array of booleans
   let selectedColor = 1;
-  let cellSize = 24;
   let completedLevels = JSON.parse(localStorage.getItem("happycolor_done") || "[]");
+  let regionState = {};
 
-  // ===== DOM =====
   const startScreen = document.getElementById("start-screen");
   const gameScreen = document.getElementById("game-screen");
   const levelGrid = document.getElementById("level-grid");
-  const canvas = document.getElementById("game-canvas");
-  const ctx = canvas.getContext("2d");
+  const svgWrap = document.getElementById("svg-wrap");
   const paletteEl = document.getElementById("palette");
   const progressFill = document.getElementById("progress-fill");
   const progressText = document.getElementById("progress-text");
   const completeOverlay = document.getElementById("complete-overlay");
-  const canvasContainer = document.getElementById("canvas-container");
 
-  // ===== Init =====
   function init() {
     renderLevelCards();
     document.getElementById("btn-back").addEventListener("click", goHome);
     document.getElementById("btn-hint").addEventListener("click", showHint);
     document.getElementById("btn-next").addEventListener("click", nextLevel);
     document.getElementById("btn-home").addEventListener("click", goHome);
-    canvas.addEventListener("pointerdown", onCanvasPointer);
-    canvas.addEventListener("pointermove", onCanvasPointer);
   }
 
-  // ===== Start Screen =====
   function renderLevelCards() {
     levelGrid.innerHTML = "";
     LEVELS.forEach((level, idx) => {
       const card = document.createElement("div");
       card.className = "level-card" + (completedLevels.includes(level.id) ? " completed" : "");
       card.innerHTML = `
-        <div class="level-thumb"><canvas width="80" height="80"></canvas></div>
+        <div class="level-thumb"></div>
         <div class="level-name">${level.name}</div>
         <div class="level-status">${completedLevels.includes(level.id) ? "✅ Fertig" : "▶ Spielen"}</div>
       `;
-      const thumbCanvas = card.querySelector("canvas");
-      drawPreview(thumbCanvas, level);
       card.addEventListener("click", () => startLevel(idx));
       levelGrid.appendChild(card);
+
+      const thumb = card.querySelector(".level-thumb");
+      thumb.innerHTML = level.svg;
+      thumb.querySelectorAll(".region").forEach(r => {
+        const n = parseInt(r.getAttribute("data-n"), 10);
+        if (n && level.colors[n]) r.setAttribute("fill", level.colors[n]);
+      });
     });
   }
 
-  function drawPreview(c, level) {
-    const tctx = c.getContext("2d");
-    const s = Math.floor(80 / level.size);
-    for (let y = 0; y < level.size; y++) {
-      for (let x = 0; x < level.size; x++) {
-        const n = level.grid[y][x];
-        if (n === 0) continue;
-        tctx.fillStyle = level.colors[n];
-        tctx.fillRect(x * s, y * s, s, s);
-      }
-    }
-  }
-
-  // ===== Game =====
   function startLevel(index) {
     currentLevel = LEVELS[index];
-    const size = currentLevel.size;
-    filled = Array.from({ length: size }, () => Array(size).fill(false));
-
-    // restore progress if any
+    regionState = {};
     const saved = localStorage.getItem("happycolor_" + currentLevel.id);
     if (saved) {
-      try {
-        const data = JSON.parse(saved);
-        filled = data.filled;
-      } catch (e) {}
+      try { regionState = JSON.parse(saved).regions || {}; } catch (e) {}
     }
-
-    selectedColor = firstIncompleteColor();
-    calcCellSize();
-    draw();
+    selectedColor = 1;
+    renderSvg();
     buildPalette();
     updateProgress();
+    selectedColor = firstIncompleteColor();
+    buildPalette();
+    highlightActive();
 
     startScreen.classList.remove("active");
     gameScreen.classList.add("active");
     completeOverlay.classList.add("hidden");
   }
 
-  function calcCellSize() {
-    const maxW = canvasContainer.clientWidth - 24;
-    const maxH = canvasContainer.clientHeight - 24;
-    const size = currentLevel.size;
-    cellSize = Math.floor(Math.min(maxW / size, maxH / size));
-    cellSize = Math.max(cellSize, 12);
-    canvas.width = size * cellSize;
-    canvas.height = size * cellSize;
-  }
-
-  function draw() {
-    const size = currentLevel.size;
-    const colors = currentLevel.colors;
-    const grid = currentLevel.grid;
-
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // background
-    ctx.fillStyle = "#0f0f1a";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    for (let y = 0; y < size; y++) {
-      for (let x = 0; x < size; x++) {
-        const n = grid[y][x];
-        if (n === 0) continue;
-
-        const px = x * cellSize;
-        const py = y * cellSize;
-
-        if (filled[y][x]) {
-          ctx.fillStyle = colors[n];
-          ctx.fillRect(px, py, cellSize, cellSize);
-        } else {
-          // unfilled: light gray with number
-          ctx.fillStyle = "#2a2a3d";
-          ctx.fillRect(px, py, cellSize, cellSize);
-
-          // subtle border
-          ctx.strokeStyle = "#3a3a50";
-          ctx.lineWidth = 1;
-          ctx.strokeRect(px + 0.5, py + 0.5, cellSize - 1, cellSize - 1);
-
-          // number
-          if (cellSize >= 16) {
-            ctx.fillStyle = "#888";
-            ctx.font = `bold ${Math.floor(cellSize * 0.45)}px sans-serif`;
-            ctx.textAlign = "center";
-            ctx.textBaseline = "middle";
-            ctx.fillText(String(n), px + cellSize / 2, py + cellSize / 2);
-          }
-        }
+  function renderSvg() {
+    svgWrap.innerHTML = currentLevel.svg;
+    const svg = svgWrap.querySelector("svg");
+    const regions = svg.querySelectorAll(".region");
+    regions.forEach((el, idx) => {
+      const n = parseInt(el.getAttribute("data-n"), 10);
+      if (!n) return;
+      const key = String(idx);
+      if (regionState[key]) {
+        el.setAttribute("fill", currentLevel.colors[n]);
+        el.classList.add("filled");
+      } else {
+        el.setAttribute("fill", "#f0ede8");
+        el.classList.remove("filled");
       }
-    }
-  }
-
-  function buildPalette() {
-    paletteEl.innerHTML = "";
-    const colors = currentLevel.colors;
-    for (let i = 1; i < colors.length; i++) {
-      const btn = document.createElement("button");
-      btn.className = "color-btn";
-      btn.style.background = colors[i];
-      btn.dataset.num = i;
-      btn.textContent = i;
-
-      if (isColorComplete(i)) {
-        btn.classList.add("done");
-        btn.innerHTML = `<span class="check">✓</span>${i}`;
-      }
-      if (i === selectedColor) btn.classList.add("selected");
-
-      btn.addEventListener("click", () => {
-        selectedColor = i;
-        document.querySelectorAll(".color-btn").forEach(b => b.classList.remove("selected"));
-        btn.classList.add("selected");
+      el.style.cursor = "pointer";
+      el.addEventListener("click", (e) => {
+        e.stopPropagation();
+        fillRegion(el, idx, n);
       });
-      paletteEl.appendChild(btn);
-    }
+    });
+    drawNumbers(svg);
   }
 
-  function isColorComplete(num) {
-    const size = currentLevel.size;
-    const grid = currentLevel.grid;
-    for (let y = 0; y < size; y++) {
-      for (let x = 0; x < size; x++) {
-        if (grid[y][x] === num && !filled[y][x]) return false;
+  function drawNumbers(svg) {
+    svg.querySelectorAll(".num-label").forEach(n => n.remove());
+    const regions = svg.querySelectorAll(".region");
+    regions.forEach((el, idx) => {
+      if (el.classList.contains("filled")) return;
+      const n = parseInt(el.getAttribute("data-n"), 10);
+      if (!n) return;
+      let bbox;
+      try { bbox = el.getBBox(); } catch (e) { return; }
+      if (bbox.width < 6 || bbox.height < 6) return;
+
+      const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      text.setAttribute("x", bbox.x + bbox.width / 2);
+      text.setAttribute("y", bbox.y + bbox.height / 2);
+      text.setAttribute("text-anchor", "middle");
+      text.setAttribute("dominant-baseline", "central");
+      text.setAttribute("class", "num-label");
+      text.setAttribute("data-for", idx);
+      text.setAttribute("fill", n === selectedColor ? "#222" : "#999");
+      text.setAttribute("font-size", Math.min(14, Math.max(8, Math.min(bbox.width, bbox.height) * 0.4)));
+      text.setAttribute("font-weight", "700");
+      text.setAttribute("font-family", "sans-serif");
+      text.setAttribute("pointer-events", "none");
+      text.textContent = n;
+      svg.appendChild(text);
+    });
+  }
+
+  function fillRegion(el, idx, n) {
+    if (n !== selectedColor) return;
+    if (regionState[String(idx)]) return;
+
+    regionState[String(idx)] = true;
+    el.setAttribute("fill", currentLevel.colors[n]);
+    el.classList.add("filled");
+
+    const svg = svgWrap.querySelector("svg");
+    const label = svg.querySelector(`.num-label[data-for="${idx}"]`);
+    if (label) label.remove();
+
+    saveProgress();
+    updateProgress();
+    buildPalette();
+
+    if (isColorComplete(selectedColor)) {
+      const next = firstIncompleteColor();
+      if (next !== selectedColor && !isLevelComplete()) {
+        selectedColor = next;
+        buildPalette();
+        highlightActive();
+        drawNumbers(svg);
+        highlightActive();
       }
     }
-    return true;
+    if (isLevelComplete()) onLevelComplete();
   }
+
+  function highlightActive() {
+    const svg = svgWrap.querySelector("svg");
+    if (!svg) return;
+    svg.querySelectorAll(".num-label").forEach(t => {
+      const forIdx = t.getAttribute("data-for");
+      const region = svg.querySelectorAll(".region")[forIdx];
+      if (!region) return;
+      const n = parseInt(region.getAttribute("data-n"), 10);
+      t.setAttribute("fill", n === selectedColor ? "#111" : "#aaa");
+    });
+    svg.querySelectorAll(".region").forEach(el => {
+      const n = parseInt(el.getAttribute("data-n"), 10);
+      if (el.classList.contains("filled")) return;
+      if (n === selectedColor) {
+        el.setAttribute("stroke", currentLevel.colors[n] || "#333");
+        el.setAttribute("stroke-width", "2.5");
+      } else {
+        el.setAttribute("stroke", "#333");
+        el.setAttribute("stroke-width", "1.2");
+      }
+    });
+  }
+
+  function countRemaining(num) {
+    const svg = svgWrap.querySelector("svg");
+    if (!svg) return 0;
+    let count = 0;
+    svg.querySelectorAll(".region").forEach((el, idx) => {
+      const n = parseInt(el.getAttribute("data-n"), 10);
+      if (n === num && !regionState[String(idx)]) count++;
+    });
+    return count;
+  }
+
+  function isColorComplete(num) { return countRemaining(num) === 0; }
 
   function firstIncompleteColor() {
     for (let i = 1; i < currentLevel.colors.length; i++) {
@@ -186,74 +189,56 @@
     return 1;
   }
 
-  function onCanvasPointer(e) {
-    if (e.buttons === 0 && e.type === "pointermove") return;
-    e.preventDefault();
-
-    const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
-    const x = Math.floor(((e.clientX - rect.left) * scaleX) / cellSize);
-    const y = Math.floor(((e.clientY - rect.top) * scaleY) / cellSize);
-
-    fillCell(x, y);
-  }
-
-  function fillCell(x, y) {
-    if (!currentLevel) return;
-    const size = currentLevel.size;
-    if (x < 0 || y < 0 || x >= size || y >= size) return;
-
-    const n = currentLevel.grid[y][x];
-    if (n === 0 || filled[y][x]) return;
-    if (n !== selectedColor) return; // only fill matching number
-
-    filled[y][x] = true;
-    draw();
-    updateProgress();
-    saveProgress();
-
-    // auto-advance color when done
-    if (isColorComplete(selectedColor)) {
-      buildPalette();
-      const next = firstIncompleteColor();
-      if (next !== selectedColor) {
-        selectedColor = next;
-        buildPalette();
+  function buildPalette() {
+    paletteEl.innerHTML = "";
+    for (let i = 1; i < currentLevel.colors.length; i++) {
+      const remaining = countRemaining(i);
+      const btn = document.createElement("button");
+      btn.className = "color-btn";
+      btn.style.background = currentLevel.colors[i];
+      if (remaining === 0) {
+        btn.classList.add("done");
+        btn.innerHTML = `<span class="check">✓</span>`;
+      } else {
+        btn.innerHTML = `<span class="num">${i}</span><span class="remain">${remaining}</span>`;
       }
-    }
-
-    if (isLevelComplete()) {
-      onLevelComplete();
+      if (i === selectedColor) btn.classList.add("selected");
+      btn.addEventListener("click", () => {
+        if (remaining === 0) return;
+        selectedColor = i;
+        buildPalette();
+        const svg = svgWrap.querySelector("svg");
+        drawNumbers(svg);
+        highlightActive();
+      });
+      paletteEl.appendChild(btn);
     }
   }
 
   function updateProgress() {
-    const size = currentLevel.size;
-    const grid = currentLevel.grid;
+    const svg = svgWrap.querySelector("svg");
+    if (!svg) return;
     let total = 0, done = 0;
-    for (let y = 0; y < size; y++) {
-      for (let x = 0; x < size; x++) {
-        if (grid[y][x] !== 0) {
-          total++;
-          if (filled[y][x]) done++;
-        }
-      }
-    }
+    svg.querySelectorAll(".region").forEach((el, idx) => {
+      const n = parseInt(el.getAttribute("data-n"), 10);
+      if (!n) return;
+      total++;
+      if (regionState[String(idx)]) done++;
+    });
     const pct = total === 0 ? 0 : Math.round((done / total) * 100);
     progressFill.style.width = pct + "%";
     progressText.textContent = pct + "%";
   }
 
   function isLevelComplete() {
-    const size = currentLevel.size;
-    const grid = currentLevel.grid;
-    for (let y = 0; y < size; y++) {
-      for (let x = 0; x < size; x++) {
-        if (grid[y][x] !== 0 && !filled[y][x]) return false;
-      }
-    }
-    return true;
+    const svg = svgWrap.querySelector("svg");
+    if (!svg) return false;
+    let all = true;
+    svg.querySelectorAll(".region").forEach((el, idx) => {
+      const n = parseInt(el.getAttribute("data-n"), 10);
+      if (n && !regionState[String(idx)]) all = false;
+    });
+    return all;
   }
 
   function onLevelComplete() {
@@ -266,32 +251,27 @@
   }
 
   function saveProgress() {
-    localStorage.setItem("happycolor_" + currentLevel.id, JSON.stringify({ filled }));
+    localStorage.setItem("happycolor_" + currentLevel.id, JSON.stringify({ regions: regionState }));
   }
 
   function showHint() {
-    // flash one unfilled cell of the selected color
-    const size = currentLevel.size;
-    const grid = currentLevel.grid;
-    for (let y = 0; y < size; y++) {
-      for (let x = 0; x < size; x++) {
-        if (grid[y][x] === selectedColor && !filled[y][x]) {
-          // temporary highlight
-          const px = x * cellSize;
-          const py = y * cellSize;
-          ctx.fillStyle = "rgba(255,255,255,0.7)";
-          ctx.fillRect(px, py, cellSize, cellSize);
-          setTimeout(() => draw(), 400);
-          return;
-        }
+    const svg = svgWrap.querySelector("svg");
+    if (!svg) return;
+    const regions = svg.querySelectorAll(".region");
+    for (let i = 0; i < regions.length; i++) {
+      const el = regions[i];
+      const n = parseInt(el.getAttribute("data-n"), 10);
+      if (n === selectedColor && !regionState[String(i)]) {
+        el.style.filter = "brightness(1.4) drop-shadow(0 0 6px white)";
+        setTimeout(() => { el.style.filter = ""; }, 700);
+        return;
       }
     }
   }
 
   function nextLevel() {
     const idx = LEVELS.findIndex(l => l.id === currentLevel.id);
-    const next = (idx + 1) % LEVELS.length;
-    startLevel(next);
+    startLevel((idx + 1) % LEVELS.length);
   }
 
   function goHome() {
@@ -300,14 +280,6 @@
     startScreen.classList.add("active");
     completeOverlay.classList.add("hidden");
   }
-
-  // handle resize
-  window.addEventListener("resize", () => {
-    if (currentLevel && gameScreen.classList.contains("active")) {
-      calcCellSize();
-      draw();
-    }
-  });
 
   init();
 })();
